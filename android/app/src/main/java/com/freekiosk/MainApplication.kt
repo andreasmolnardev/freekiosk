@@ -40,6 +40,7 @@ class MainApplication : Application(), ReactApplication {
           add(AudioControlPackage())
           add(FlashlightPackage())
           add(RotationControlPackage())
+          add(VoiceAssistantPackage())
         },
     )
   }

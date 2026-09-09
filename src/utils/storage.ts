@@ -154,6 +154,13 @@ export const KEYS = {
   MQTT_CAMERA_AUTO: '@kiosk_mqtt_camera_auto',
   MQTT_CAMERA_INTERVAL: '@kiosk_mqtt_camera_interval',
   MQTT_CAMERA_QUALITY: '@kiosk_mqtt_camera_quality',
+  // Voice assistant
+  VOICE_WAKE_WORD_ENABLED: '@kiosk_voice_wake_word_enabled',
+  VOICE_WAKE_WORD: '@kiosk_voice_wake_word',
+  VOICE_STT_ENABLED: '@kiosk_voice_stt_enabled',
+  VOICE_STT_LANGUAGE: '@kiosk_voice_stt_language',
+  VOICE_TRANSCRIPTION_ACTION: '@kiosk_voice_transcription_action',
+  VOICE_TRANSCRIPTION_URL_TEMPLATE: '@kiosk_voice_transcription_url_template',
   // Beta Updates
   BETA_UPDATES_ENABLED: '@kiosk_beta_updates_enabled',
   // Managed Apps (multi-app mode, background apps, accessibility whitelist)
@@ -402,6 +409,73 @@ export const StorageService = {
     }
   },
 
+  // Voice assistant configuration
+  saveVoiceWakeWordEnabled: async (value: boolean): Promise<void> => {
+    try { await AsyncStorage.setItem(KEYS.VOICE_WAKE_WORD_ENABLED, JSON.stringify(value)); }
+    catch (error) { console.error('Error saving voice wake word setting:', error); }
+  },
+
+  getVoiceWakeWordEnabled: async (): Promise<boolean> => {
+    try {
+      const value = await AsyncStorage.getItem(KEYS.VOICE_WAKE_WORD_ENABLED);
+      return value ? JSON.parse(value) === true : false;
+    } catch { return false; }
+  },
+
+  saveVoiceWakeWord: async (value: string): Promise<void> => {
+    try { await AsyncStorage.setItem(KEYS.VOICE_WAKE_WORD, value); }
+    catch (error) { console.error('Error saving voice wake word:', error); }
+  },
+
+  getVoiceWakeWord: async (): Promise<string> => {
+    try { return (await AsyncStorage.getItem(KEYS.VOICE_WAKE_WORD)) ?? 'Hey Jarvis'; }
+    catch { return 'Hey Jarvis'; }
+  },
+
+  saveVoiceSttEnabled: async (value: boolean): Promise<void> => {
+    try { await AsyncStorage.setItem(KEYS.VOICE_STT_ENABLED, JSON.stringify(value)); }
+    catch (error) { console.error('Error saving voice STT setting:', error); }
+  },
+
+  getVoiceSttEnabled: async (): Promise<boolean> => {
+    try {
+      const value = await AsyncStorage.getItem(KEYS.VOICE_STT_ENABLED);
+      return value ? JSON.parse(value) === true : false;
+    } catch { return false; }
+  },
+
+  saveVoiceSttLanguage: async (value: string): Promise<void> => {
+    try { await AsyncStorage.setItem(KEYS.VOICE_STT_LANGUAGE, value); }
+    catch (error) { console.error('Error saving voice STT language:', error); }
+  },
+
+  getVoiceSttLanguage: async (): Promise<string> => {
+    try { return (await AsyncStorage.getItem(KEYS.VOICE_STT_LANGUAGE)) ?? 'en-US'; }
+    catch { return 'en-US'; }
+  },
+
+  saveVoiceTranscriptionAction: async (value: 'none' | 'open_url'): Promise<void> => {
+    try { await AsyncStorage.setItem(KEYS.VOICE_TRANSCRIPTION_ACTION, value); }
+    catch (error) { console.error('Error saving voice transcription action:', error); }
+  },
+
+  getVoiceTranscriptionAction: async (): Promise<'none' | 'open_url'> => {
+    try {
+      const value = await AsyncStorage.getItem(KEYS.VOICE_TRANSCRIPTION_ACTION);
+      return value === 'open_url' ? 'open_url' : 'none';
+    } catch { return 'none'; }
+  },
+
+  saveVoiceTranscriptionUrlTemplate: async (value: string): Promise<void> => {
+    try { await AsyncStorage.setItem(KEYS.VOICE_TRANSCRIPTION_URL_TEMPLATE, value); }
+    catch (error) { console.error('Error saving voice transcription URL:', error); }
+  },
+
+  getVoiceTranscriptionUrlTemplate: async (): Promise<string> => {
+    try { return (await AsyncStorage.getItem(KEYS.VOICE_TRANSCRIPTION_URL_TEMPLATE)) ?? ''; }
+    catch { return ''; }
+  },
+
   //CLEAR ALL
   async clearAll(): Promise<void> {
     try {
@@ -451,6 +525,13 @@ export const StorageService = {
         // URL Planner
         KEYS.URL_PLANNER_ENABLED,
         KEYS.URL_PLANNER_EVENTS,
+        // Voice assistant
+        KEYS.VOICE_WAKE_WORD_ENABLED,
+        KEYS.VOICE_WAKE_WORD,
+        KEYS.VOICE_STT_ENABLED,
+        KEYS.VOICE_STT_LANGUAGE,
+        KEYS.VOICE_TRANSCRIPTION_ACTION,
+        KEYS.VOICE_TRANSCRIPTION_URL_TEMPLATE,
         // REST API
         KEYS.REST_API_ENABLED,
         KEYS.REST_API_PORT,
@@ -3321,6 +3402,14 @@ export const StorageService = {
           port: num(KEYS.REST_API_PORT, 8080),
           allowControl: bool(KEYS.REST_API_ALLOW_CONTROL, true),
         },
+        voiceAssistant: {
+          wakeWordEnabled: bool(KEYS.VOICE_WAKE_WORD_ENABLED),
+          wakeWord: str(KEYS.VOICE_WAKE_WORD),
+          sttEnabled: bool(KEYS.VOICE_STT_ENABLED),
+          sttLanguage: str(KEYS.VOICE_STT_LANGUAGE, 'en-US'),
+          onTranscription: str(KEYS.VOICE_TRANSCRIPTION_ACTION, 'none'),
+          transcriptionUrlTemplate: str(KEYS.VOICE_TRANSCRIPTION_URL_TEMPLATE),
+        },
         mqtt: {
           enabled: bool(KEYS.MQTT_ENABLED),
           brokerUrl: str(KEYS.MQTT_BROKER_URL),
@@ -3543,6 +3632,15 @@ export const StorageService = {
         set(KEYS.REST_API_ENABLED, ra.enabled);
         set(KEYS.REST_API_PORT, ra.port);
         set(KEYS.REST_API_ALLOW_CONTROL, ra.allowControl);
+      }
+      const voice = adv.voiceAssistant as Record<string, unknown> | undefined;
+      if (voice) {
+        set(KEYS.VOICE_WAKE_WORD_ENABLED, voice.wakeWordEnabled);
+        set(KEYS.VOICE_WAKE_WORD, voice.wakeWord);
+        set(KEYS.VOICE_STT_ENABLED, voice.sttEnabled);
+        set(KEYS.VOICE_STT_LANGUAGE, voice.sttLanguage);
+        set(KEYS.VOICE_TRANSCRIPTION_ACTION, voice.onTranscription);
+        set(KEYS.VOICE_TRANSCRIPTION_URL_TEMPLATE, voice.transcriptionUrlTemplate);
       }
       const mq = adv.mqtt as Record<string, unknown> | undefined;
       if (mq) {

@@ -113,6 +113,14 @@ class MqttClientService {
     return MqttModule.updateImageSettings(settings);
   }
 
+  /** Publish the final voice transcription as a retained MQTT message. */
+  async publishVoiceTranscript(transcript: Record<string, unknown>): Promise<boolean> {
+    if (Platform.OS !== 'android' || !MqttModule?.publishVoiceTranscript) {
+      return false;
+    }
+    return MqttModule.publishVoiceTranscript(JSON.stringify(transcript));
+  }
+
   /**
    * Update status that will be published via MQTT
    * @param status Status object to expose via MQTT

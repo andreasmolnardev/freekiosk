@@ -98,8 +98,8 @@ android {
         applicationId "com.freekiosk"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 48
-        versionName "2.0.0-beta.3"
+        versionCode 49
+        versionName "2.1.0-andreasmolnardev"
 
         // Expose self-update flag to both Kotlin (BuildConfig) and JS (via UpdateModule constants)
         buildConfigField "boolean", "ENABLE_SELF_UPDATE", "${enableSelfUpdate}"
@@ -212,6 +212,9 @@ dependencies {
 
     // HiveMQ MQTT Client for Home Assistant integration
     implementation("com.hivemq:hivemq-mqtt-client:1.3.12")
+
+    // Local openWakeWord inference (same model family used by VACA)
+    implementation("xyz.rementia:openwakeword:0.1.5")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

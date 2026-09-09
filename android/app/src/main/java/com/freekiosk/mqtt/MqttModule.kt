@@ -111,6 +111,7 @@ class MqttModule(private val reactContext: ReactApplicationContext) :
     // ==================== MQTT client ====================
 
     private var mqttClient: KioskMqttClient? = null
+    private var mqttBaseTopic: String = "freekiosk"
 
     // ==================== JS status variables (same as HttpServerModule) ====================
 
@@ -463,6 +464,7 @@ class MqttModule(private val reactContext: ReactApplicationContext) :
             client.imagePublisher = imagePublisher
             discovery.imageStreams = buildImageStreams(config.baseTopic, topicId, imagePublisher)
 
+            mqttBaseTopic = config.baseTopic
             mqttClient = client
             client.connect()
 
@@ -515,6 +517,24 @@ class MqttModule(private val reactContext: ReactApplicationContext) :
     @ReactMethod
     fun isMqttConnected(promise: Promise) {
         promise.resolve(mqttClient?.isConnected() == true)
+    }
+
+    /** Publish the final voice transcription as a retained MQTT message. */
+    @ReactMethod
+    fun publishVoiceTranscript(transcriptJson: String, promise: Promise) {
+        try {
+            val client = mqttClient
+            if (client == null || !client.isConnected()) {
+                promise.resolve(false)
+                return
+            }
+            val topic = "${mqttBaseTopic.trimEnd('/')}/voice/last_transcript"
+            client.publish(topic, transcriptJson, qos = 0, retained = true)
+            promise.resolve(true)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to publish voice transcript", e)
+            promise.reject("MQTT_VOICE_PUBLISH_ERROR", e.message, e)
+        }
     }
 
     /**

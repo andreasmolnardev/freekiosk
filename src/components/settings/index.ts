@@ -13,6 +13,7 @@ export { default as SettingsModeSelector } from './SettingsModeSelector';
 export { default as UrlListEditor } from './UrlListEditor';
 export { default as BackupRestoreSection } from './BackupRestoreSection';
 export { default as ManagedAppsSection } from './ManagedAppsSection';
+export { default as VoiceAssistantSettings } from './VoiceAssistantSettings';
 
 // URL Planner components
 export { default as DaySelector } from './DaySelector';

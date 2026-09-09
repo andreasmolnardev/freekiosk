@@ -11,6 +11,7 @@ import {
   SettingsInfoBox,
   SettingsInput,
   BackupRestoreSection,
+  VoiceAssistantSettings,
 } from '../../../components/settings';
 import { ApiSettingsSection } from '../../../components/ApiSettingsSection';
 import { MqttSettingsSection } from '../../../components/MqttSettingsSection';
@@ -439,6 +440,9 @@ const AdvancedTab: React.FC<AdvancedTabProps> = ({
 
       {/* MQTT - Home Assistant Integration */}
       <MqttSettingsSection />
+
+      {/* Optional voice assistant configuration */}
+      <VoiceAssistantSettings />
 
       {/* Accessibility Service - Hidden in Play Store builds (BIND_ACCESSIBILITY_SERVICE policy) */}
       {enableSelfUpdate && (

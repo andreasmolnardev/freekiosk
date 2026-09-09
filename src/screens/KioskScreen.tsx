@@ -33,6 +33,7 @@ import { revokeSettingsAccess } from '../utils/authState';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { CloudSyncService, CONFIG_UPDATED_EVENT, FORCE_UNENROLL_EVENT } from '../utils/CloudSyncService';
 import { CLOUD_ENABLED } from '../config/features';
+import startVoiceAssistantRuntime from '../utils/VoiceAssistantService';
 
 const { HttpServerModule } = NativeModules;
 
@@ -349,6 +350,34 @@ const KioskScreen: React.FC<KioskScreenProps> = ({ navigation }) => {
 
   // Keep the ref above in step with the state it mirrors.
   useEffect(() => { displayModeRef.current = displayMode; }, [displayMode]);
+
+  // Voice runtime: wake-word detection and STT are separate native modes. The runtime is
+  // scoped to the kiosk screen so settings/PIN screens never retain the microphone.
+  useEffect(() => {
+    if (!isFocused) return;
+    let cancelled = false;
+    let stopRuntime: (() => void) | null = null;
+
+    startVoiceAssistantRuntime({
+      onOpenUrl: async (target: string) => {
+        if (cancelled) return;
+        setUrl(target);
+        setBaseUrl(target);
+        setDashboardShowGrid(false);
+        setWebViewKey(previous => previous + 1);
+        await StorageService.saveUrl(target);
+      },
+      onError: message => console.warn('[VoiceAssistant]', message),
+    }).then(stop => {
+      if (cancelled) stop();
+      else stopRuntime = stop;
+    }).catch(error => console.warn('[VoiceAssistant] startup failed:', error));
+
+    return () => {
+      cancelled = true;
+      stopRuntime?.();
+    };
+  }, [isFocused]);
 
   // Cloud sync: start heartbeat loop on mount, reload settings on config push
   useEffect(() => {
