@@ -152,23 +152,14 @@ class AppLauncherModule(reactContext: ReactApplicationContext) : ReactContextBas
         // Run on background thread to avoid ANR on devices with many apps
         executor.execute {
             try {
-                val pm = reactApplicationContext.packageManager
-                val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-
-                val appList = mutableListOf<WritableMap>()
-                for (packageInfo in packages) {
-                    // Filter: only apps with launch intents (launchable apps)
-                    if (pm.getLaunchIntentForPackage(packageInfo.packageName) != null) {
-                        val appName = pm.getApplicationLabel(packageInfo).toString()
-                        val appData = Arguments.createMap()
-                        appData.putString("packageName", packageInfo.packageName)
-                        appData.putString("appName", appName)
-                        appList.add(appData)
+                val appList = AppDiscovery.getApps(reactApplicationContext).map { app ->
+                    Arguments.createMap().apply {
+                        putString("packageName", app.packageName)
+                        putString("appName", app.appName)
                     }
                 }
 
-                // Sort by app name
-                val sortedList = appList.sortedBy { it.getString("appName") }
+                val sortedList = appList
 
                 // Convert to WritableArray
                 val resultArray = Arguments.createArray()

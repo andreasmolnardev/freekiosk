@@ -236,8 +236,11 @@ class KioskMqttClient(
     /** Lambda invoked when a connection error occurs, with error message. */
     var onConnectionError: ((String) -> Unit)? = null
 
-    /** Lambda that provides the current local IP address for HA Discovery configuration_url. */
+    /** Lambda that provides the current local IP address for HA Discovery configuration. */
     var ipProvider: (() -> String)? = null
+
+    /** Maps a Home Assistant app-select label to an installed package name. */
+    var appPackageForLabel: ((String) -> String?)? = null
 
     /** Optional MqttDiscovery instance for Home Assistant discovery config publishing. */
     var discovery: MqttDiscovery? = null
@@ -735,6 +738,15 @@ class KioskMqttClient(
             "tts" -> "tts" to JSONObject().put("text", payload)
             "toast" -> "toast" to JSONObject().put("text", payload)
             "launch_app" -> "launchApp" to JSONObject().put("package", payload)
+            "app_select" -> {
+                val packageName = appPackageForLabel?.invoke(payload)
+                if (packageName.isNullOrBlank()) {
+                    Log.w(TAG, "Unknown app selected from MQTT: $payload")
+                    null to null
+                } else {
+                    "launchApp" to JSONObject().put("package", packageName)
+                }
+            }
             "execute_js" -> "executeJs" to JSONObject().put("code", payload)
 
             "mode" -> {

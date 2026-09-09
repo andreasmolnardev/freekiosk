@@ -11,8 +11,12 @@ class MqttDiscovery(
     private val baseTopic: String,
     private val discoveryPrefix: String,
     private val appVersion: String,
-    private val deviceName: String?
+    private val deviceName: String?,
+    /** Launchable applications exposed by the MQTT select entity. */
+    var launchableApps: List<LaunchableApp> = emptyList()
 ) {
+
+    data class LaunchableApp(val packageName: String, val appName: String)
 
     companion object {
         private const val STREAM_SCREENSHOT = MqttImagePublisher.STREAM_SCREENSHOT
@@ -96,6 +100,7 @@ class MqttDiscovery(
         configs.addAll(buildButtonConfigs(localIp))
         configs.addAll(buildTextConfigs(localIp))
         configs.addAll(buildImageConfigs(localIp))
+        configs.addAll(buildAppSelectConfig(localIp))
 
         return configs
     }
@@ -381,8 +386,30 @@ class MqttDiscovery(
     }
 
     /**
-     * Build the configs for every advertised image stream: an `image` entity, a `camera` entity
-     * (both fed by the same raw JPEG topic) and a button to capture on demand.
+     * Advertise installed launchable applications as a Home Assistant select.
+     * Labels are the user-facing values; the MQTT client maps them back to packages.
+     * `optimistic` is intentional because Android does not reliably expose the foreground
+     * package without the optional Usage Access permission.
+     */
+    private fun buildAppSelectConfig(localIp: String): List<Pair<String, JSONObject>> {
+        if (launchableApps.isEmpty()) return emptyList()
+
+        val options = JSONArray()
+        launchableApps.forEach { options.put(it.appName) }
+        // Do not use baseConfig here: the generic JSON state topic cannot represent a select
+        // option, and optimistic mode lets HA track the last selected value locally.
+        val config = commonConfig("app_select", "App", localIp).apply {
+            put("command_topic", "$baseTopic/$topicId/set/app_select")
+            put("options", options)
+            put("optimistic", true)
+            put("icon", "mdi:apps")
+        }
+        return listOf(discoveryTopic("select", "app_select") to config)
+    }
+
+    /**
+     * Build the configs for every advertised image stream: an `image` + a `camera` entity,
+     * plus a button to capture on demand.
      */
     private fun buildImageConfigs(localIp: String): List<Pair<String, JSONObject>> {
         val configs = mutableListOf<Pair<String, JSONObject>>()

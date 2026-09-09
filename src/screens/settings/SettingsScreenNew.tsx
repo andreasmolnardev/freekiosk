@@ -40,6 +40,7 @@ import {
   SecurityTab,
   AdvancedTab,
   DashboardTab,
+  AppsTab,
 } from './tabs';
 import { RecurringEventEditor, OneTimeEventEditor } from '../../components/settings';
 import ScreenScheduleRuleEditor from '../../components/settings/ScreenScheduleRuleEditor';
@@ -64,6 +65,7 @@ import Icon, { IconName, IconMap } from '../../components/Icon';
 const TABS: { id: string; label: string; icon: IconName }[] = [
   { id: 'general', label: 'General', icon: 'home' },
   { id: 'dashboard', label: 'Dashboard', icon: 'view-dashboard' },
+  { id: 'apps', label: 'Apps', icon: 'apps' },
   { id: 'display', label: 'Display', icon: 'monitor' },
   { id: 'security', label: 'Security', icon: 'shield-lock' },
   { id: 'advanced', label: 'Advanced', icon: 'cog' },
@@ -1966,6 +1968,9 @@ const SettingsScreenNew: React.FC<SettingsScreenProps> = ({ navigation }) => {
           />
         );
 
+      case 'apps':
+        return <AppsTab />;
+
       case 'display':
         return (
           <DisplayTab
@@ -2252,7 +2257,7 @@ const SettingsScreenNew: React.FC<SettingsScreenProps> = ({ navigation }) => {
         {renderTab()}
         
         {/* Save Button - Always visible */}
-        {activeTab !== 'advanced' && (
+        {activeTab !== 'advanced' && activeTab !== 'apps' && (
           <TouchableOpacity style={[styles.saveButton, styles.saveButtonRow]} onPress={handleSave}>
             <Icon name="content-save" size={20} color={Colors.textOnPrimary} style={styles.saveButtonIcon} />
             <Text style={styles.saveButtonText}>Save</Text>

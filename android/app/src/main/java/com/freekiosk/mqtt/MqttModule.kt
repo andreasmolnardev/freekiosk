@@ -35,6 +35,7 @@ import android.util.Log
 import android.widget.Toast
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
+import com.freekiosk.AppDiscovery
 import com.freekiosk.CameraPhotoModule
 import com.freekiosk.ScreenController
 import org.json.JSONObject
@@ -338,6 +339,25 @@ class MqttModule(private val reactContext: ReactApplicationContext) :
 
             val client = KioskMqttClient(reactContext.applicationContext, config)
 
+            // Use the same catalogue as the admin Apps tab. Duplicate labels are made unique
+            // because Home Assistant select options must be unambiguous.
+            val launchableApps = try {
+                val apps = AppDiscovery.getApps(reactContext).map { app ->
+                    MqttDiscovery.LaunchableApp(app.packageName, app.appName)
+                }
+                val counts = apps.groupingBy { it.appName }.eachCount()
+                apps.map { app ->
+                    if ((counts[app.appName] ?: 0) > 1) {
+                        app.copy(appName = "${app.appName} (${app.packageName})")
+                    } else app
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not discover launchable apps for MQTT", e)
+                emptyList()
+            }
+            val appByLabel = launchableApps.associateBy { it.appName }
+            client.appPackageForLabel = { label -> appByLabel[label]?.packageName }
+
             // Wire up callbacks
             client.statusProvider = { getDeviceStatus() }
 
@@ -428,6 +448,7 @@ class MqttModule(private val reactContext: ReactApplicationContext) :
                 appVersion = appVersion,
                 deviceName = config.deviceName
             )
+            discovery.launchableApps = launchableApps
             client.discovery = discovery
 
             // Set up image publishing (screenshot / camera snapshots) and advertise the
