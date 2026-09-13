@@ -1,6 +1,8 @@
 package com.freekiosk.api
 
 import android.app.ActivityManager
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -39,6 +41,7 @@ import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import android.accessibilityservice.AccessibilityService
 import android.os.Build
+import com.freekiosk.BootReceiver
 import com.freekiosk.DeviceAdminReceiver
 import com.freekiosk.MainActivity
 import com.freekiosk.CameraPhotoModule
@@ -74,7 +77,7 @@ class HttpServerModule(private val reactContext: ReactApplicationContext) :
         private val NATIVELY_COMPLETE = setOf(
             "audioPlay", "playSound", "audioStop", "audioBeep",
             "screenOn", "screenOff",
-            "reboot", "tts", "lockDevice", "restartUi",
+            "reboot", "tts", "lockDevice", "restartUi", "launchApp",
             "remoteKey", "keyboardKey", "keyboardCombo", "keyboardText",
             "getLocation", "cameraList", "getAutoBrightness",
         )
@@ -1038,6 +1041,17 @@ class HttpServerModule(private val reactContext: ReactApplicationContext) :
             "getLocation" -> {
                 return getLocationInfo()
             }
+            "launchApp" -> {
+                val packageName = params?.optString("package", "")?.trim() ?: ""
+                if (packageName.isEmpty()) {
+                    return JSONObject().apply {
+                        put("executed", false)
+                        put("command", command)
+                        put("error", "Package name is required")
+                    }
+                }
+                return launchExternalAppNatively(packageName)
+            }
             "setMode" -> {
                 // #209: The actual mode switch runs in the JS onSetMode handler, but when
                 // FreeKiosk is backgrounded behind an external app the JS thread is frozen,
@@ -1095,6 +1109,101 @@ class HttpServerModule(private val reactContext: ReactApplicationContext) :
      * the background. Same REORDER_TO_FRONT pattern as BackgroundAppMonitorService, so the
      * activity is reused (not recreated) and no WebView state is lost.
      */
+    private fun launchExternalAppNatively(packageName: String): JSONObject {
+        val launchIntent = reactContext.packageManager.getLaunchIntentForPackage(packageName)
+            ?: return JSONObject().apply {
+                put("executed", false)
+                put("command", "launchApp")
+                put("error", "Application with package name $packageName is not installed")
+            }
+
+        return try {
+            preparePackageForLockTask(packageName)
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            reactContext.startActivity(launchIntent)
+            Log.i(TAG, "External app launched natively: $packageName")
+            JSONObject().apply {
+                put("executed", true)
+                put("command", "launchApp")
+                put("package", packageName)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch external app $packageName: ${e.message}", e)
+            JSONObject().apply {
+                put("executed", false)
+                put("command", "launchApp")
+                put("error", e.message ?: "Failed to launch app")
+            }
+        }
+    }
+
+    /** Ensure an MQTT/REST-launched app is permitted to enter the current locked task. */
+    private fun preparePackageForLockTask(packageName: String) {
+        val activityManager = reactContext.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        if (activityManager.lockTaskModeState == ActivityManager.LOCK_TASK_MODE_NONE) return
+
+        val dpm = reactContext.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        if (!dpm.isDeviceOwnerApp(reactContext.packageName)) return
+
+        val admin = ComponentName(reactContext, DeviceAdminReceiver::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            var features = DevicePolicyManager.LOCK_TASK_FEATURE_GLOBAL_ACTIONS
+            val settings = readLockTaskLaunchSettings()
+            if (!settings.allowPowerButton) {
+                features = features and DevicePolicyManager.LOCK_TASK_FEATURE_GLOBAL_ACTIONS.inv()
+            }
+            if (settings.allowSystemInfo) {
+                features = features or DevicePolicyManager.LOCK_TASK_FEATURE_SYSTEM_INFO
+            }
+            if (settings.allowNotifications) {
+                features = features or DevicePolicyManager.LOCK_TASK_FEATURE_NOTIFICATIONS
+                features = features or DevicePolicyManager.LOCK_TASK_FEATURE_HOME
+            }
+            if (BootReceiver.readScreenLockCompatFlag(reactContext) && BootReceiver.isDeviceSecure(reactContext)) {
+                features = features or DevicePolicyManager.LOCK_TASK_FEATURE_KEYGUARD
+            }
+            dpm.setLockTaskFeatures(admin, features)
+        }
+
+        val packages = dpm.getLockTaskPackages(admin).toMutableList()
+        if (packageName !in packages) {
+            packages.add(packageName)
+            dpm.setLockTaskPackages(admin, packages.toTypedArray())
+        }
+    }
+
+    private data class LockTaskLaunchSettings(
+        val allowPowerButton: Boolean,
+        val allowNotifications: Boolean,
+        val allowSystemInfo: Boolean,
+    )
+
+    private fun readLockTaskLaunchSettings(): LockTaskLaunchSettings {
+        var allowPowerButton = true
+        var allowNotifications = false
+        var allowSystemInfo = false
+        try {
+            val path = reactContext.getDatabasePath("RKStorage").absolutePath
+            android.database.sqlite.SQLiteDatabase.openDatabase(
+                path, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY
+            ).use { db ->
+                fun readBoolean(key: String, default: Boolean): Boolean {
+                    db.rawQuery(
+                        "SELECT value FROM catalystLocalStorage WHERE key = ?", arrayOf(key)
+                    ).use { cursor ->
+                        return if (cursor.moveToFirst()) cursor.getString(0) == "true" else default
+                    }
+                }
+                allowPowerButton = readBoolean("@kiosk_allow_power_button", true)
+                allowNotifications = readBoolean("@kiosk_allow_notifications", false)
+                allowSystemInfo = readBoolean("@kiosk_allow_system_info", false)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not read lock-task launch settings; using defaults: ${e.message}")
+        }
+        return LockTaskLaunchSettings(allowPowerButton, allowNotifications, allowSystemInfo)
+    }
+
     private fun bringAppToFront() {
         try {
             val intent = Intent(reactContext, MainActivity::class.java).apply {
